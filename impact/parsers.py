@@ -1,73 +1,33 @@
 from . import tools, fieldmaps
 from .particles import SPECIES_MASS, identify_species
-
+from . import headers
 from pmd_beamphysics.units import pmd_unit, multiply_units
 
 import numpy as np
 import os
 
 
-#-----------------
+# -----------------
 # Parsing ImpactT input file
 
-
-#-----------------
-# ImpactT Header
-# lattice starts at line 10
-
-# Header dicts
-HNAMES={}
-HTYPES={}
-HDEFAULTS = {}
-# Line 1
-HNAMES[1]  = ['Npcol', 'Nprow']
-HTYPES[1] = [int, int]
-HDEFAULTS[1] = [1,1]
-
-# Line 2
-HNAMES[2] = ['Dt', 'Ntstep', 'Nbunch']
-HTYPES[2] = [float, int, int]
-HDEFAULTS[2] = [0, 100000000, 1] # Dt must be set
-
-# Line 3
-HNAMES[3]    = ['Dim', 'Np', 'Flagmap', 'Flagerr', 'Flagdiag', 'Flagimg', 'Zimage']
-HTYPES[3]    = [int,   int,   int,      int,        int,       int,        float];
-HDEFAULTS[3] = [999,   0,     1,        0,          2,         1,          0.02]
-
-# Line 4
-HNAMES[4] = ['Nx', 'Ny', 'Nz', 'Flagbc', 'Xrad', 'Yrad', 'Perdlen']
-HTYPES[4] = [int, int, int, int, float, float, float]
-HDEFAULTS[4] = [32, 32, 32, 1, 0.015, 0.015, 100.0]
-
-# Line 5
-HNAMES[5] = ['Flagdist', 'Rstartflg', 'Flagsbstp', 'Nemission', 'Temission']
-HTYPES[5] = [int, int, int, int, float ]
-HDEFAULTS[5] = [16, 0, 0, 400, 1.4e-11]
-
-# Line 6-8
-HNAMES[6] = ['sigx(m)', 'sigpx', 'muxpx', 'xscale', 'pxscale', 'xmu1(m)', 'xmu2']
-HTYPES[6] = [float for i in range(len(HNAMES[6]))]
-HDEFAULTS[6] = [0.0 for i in range(len(HNAMES[6]))]
-HNAMES[7] = ['sigy(m)', 'sigpy', 'muxpy', 'yscale', 'pyscale', 'ymu1(m)', 'ymu2']
-HTYPES[7] = HTYPES[6] 
-HDEFAULTS[7] = [0.0 for i in range(len(HNAMES[7]))]
-HNAMES[8] = ['sigz(m)', 'sigpz', 'muxpz', 'zscale', 'pzscale', 'zmu1(m)', 'zmu2']
-HTYPES[8] = HTYPES[6]
-HDEFAULTS[8] = [0.0 for i in range(len(HNAMES[8]))]
-
-# Line 9
-HNAMES[9] = ['Bcurr', 'Bkenergy', 'Bmass', 'Bcharge', 'Bfreq', 'Tini']
-HTYPES[9] = [float for i in range(len(HNAMES[9]))]
-HDEFAULTS[9] = [1.0, 1.0, 510998.946, -1.0, 2856000000.0, 0.0]
+HNAMES, HDEFAULTS = headers.get_t_header()
+# Should restructure so this is automatically the header if
+# input file is ImpactZ.in as opposed to ImpactT.in
+#HNAMES, HDEFAULTS = headers.get_z_header()
 
 # Collect all these
-HEADER_NAMES=[]
-HEADER_TYPES=[]
+HEADER_NAMES = []
+HEADER_TYPES = []
 HEADER_DEFAULTS = []
-for i in range(1,10):
+for i in range(1, len(HNAMES) + 1):
     HEADER_NAMES.append(HNAMES[i])
-    HEADER_TYPES.append(HTYPES[i])
-    HEADER_DEFAULTS.append(HDEFAULTS[i])
+    HD = HDEFAULTS[i]
+    HEADER_DEFAULTS.append(HD)
+    if isinstance(HD[0], list):
+        HEADER_TYPES.append([HD[0][0]])
+    else:
+        HEADER_TYPES.append([type(i) for i in HD])
+
 # Flattened version
 ALL_HEADER_NAMES = [item for sublist in HEADER_NAMES for item in sublist]
 ALL_HEADER_TYPES = [item for sublist in HEADER_TYPES for item in sublist]
@@ -316,7 +276,13 @@ def parse_line(line, names, types):
     
     """
     x = line.split()
-    values =  [types[i](x[i]) for i in range(len(x))]
+    values = []
+    for i in range(len(types)):
+        if isinstance(types[i], list):
+            # assume there can only be one list per line
+            values.append([types[i][0](j) for j in x])
+        else:
+            values.append(types[i](x[i]))
     return dict(zip(names, values))
 
 
@@ -325,6 +291,8 @@ def parse_header(lines):
     x = remove_comments(lines)
     d = {}
     for i in range(9):
+        print(HEADER_NAMES[i])
+        print(x[i])
         d.update(parse_line(x[i], HEADER_NAMES[i], HEADER_TYPES[i]))
     return(d)
 
@@ -335,7 +303,7 @@ def ix_lattice(lines):
     
     """
     slines = remove_comments(lines)
-    latline = slines[9]
+    latline = slines[len(HEADER_NAMES)]
     for i in range(len(lines)):
         if latline in lines[i]:
             return i

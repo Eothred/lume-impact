@@ -44,6 +44,7 @@ class Impact:
                 *,
                 command='ImpactTexe',
                 command_mpi='ImpactTexe-mpi',
+                code_type=None,
                 use_mpi = False,
                 mpi_run = 'mpirun -n {n} {command_mpi}', # If needed 
                 use_tempdir=True,
@@ -286,6 +287,7 @@ class Impact:
             exe = tools.find_executable(exename=self.command_mpi, envname=self.command_mpi_env)
         else:
             exe = tools.find_executable(exename=self.command, envname=self.command_env)
+        print("exec", exe)
         return exe
        
     @property
